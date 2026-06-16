@@ -16,6 +16,7 @@ namespace GestureSign.Daemon.Input
         private int _stateUpdating;
 
         public LowLevelMouseHook LowLevelMouseHook;
+        public LowLevelKeyboardHook LowLevelKeyboardHook;
         public event RawPointsDataMessageEventHandler PointsIntercepted;
 
         public InputProvider()
@@ -25,11 +26,12 @@ namespace GestureSign.Daemon.Input
 
             AppConfig.ConfigChanged += AppConfig_ConfigChanged;
             LowLevelMouseHook = new LowLevelMouseHook();
-            if (AppConfig.DrawingButton != MouseActions.None)
-                Task.Delay(1000).ContinueWith((t) =>
-                {
-                    LowLevelMouseHook.StartHook();
-                }, TaskScheduler.FromCurrentSynchronizationContext());
+            LowLevelKeyboardHook = new LowLevelKeyboardHook();
+            Task.Delay(1000).ContinueWith((t) =>
+            {
+                LowLevelMouseHook.StartHook();
+                LowLevelKeyboardHook.StartHook();
+            }, TaskScheduler.FromCurrentSynchronizationContext());
 
 
             SystemEvents.SessionSwitch += new SessionSwitchEventHandler(OnSessionSwitch);
@@ -41,9 +43,8 @@ namespace GestureSign.Daemon.Input
 
         private void AppConfig_ConfigChanged(object sender, System.EventArgs e)
         {
-            if (AppConfig.DrawingButton != MouseActions.None)
-                LowLevelMouseHook.StartHook();
-            else LowLevelMouseHook.Unhook();
+            LowLevelMouseHook.StartHook();
+            LowLevelKeyboardHook.StartHook();
 
             UpdateDeviceState();
         }
@@ -104,6 +105,7 @@ namespace GestureSign.Daemon.Input
                 SystemEvents.SessionSwitch -= OnSessionSwitch;
                 SystemEvents.PowerModeChanged -= OnPowerModeChanged;
                 LowLevelMouseHook?.Unhook();
+                LowLevelKeyboardHook?.Unhook();
                 _deviceStateServer.Dispose();
                 disposedValue = true;
             }

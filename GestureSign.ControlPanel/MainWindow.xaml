@@ -11,7 +11,7 @@
                     Width="660"
                     ShowIconOnTitleBar="False"
                     ShowTitleBar="True"
-                    Icon="Resources/normal.ico"
+                    Icon="/GestureSign.ControlPanel;component/Resources/normal.ico"
                     BorderThickness="1"
                     BorderBrush="{StaticResource AccentColorBrush}"
                     MinWidth="586"

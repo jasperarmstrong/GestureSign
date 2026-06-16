@@ -4,15 +4,24 @@ using System.Linq;
 using GestureSign.Common.Configuration;
 using GestureSign.Common.Input;
 using ManagedWinapi.Hooks;
+using System.Windows.Forms;
 
 namespace GestureSign.Daemon.Input
 {
     public class PointEventTranslator
     {
+        private const int WmKeyDown = 0x100;
+        private const int WmKeyUp = 0x101;
+        private const int WmSysKeyDown = 0x104;
+        private const int WmSysKeyUp = 0x105;
+        private const Keys DrawingKeyboardKey = Keys.F22;
+
         private int _lastPointsCount;
         private HashSet<MouseActions> _pressedMouseButton;
+        private bool _keyboardDrawing;
 
         internal Devices SourceDevice { get; private set; }
+        internal bool IsKeyboardGesture { get; private set; }
 
         internal PointEventTranslator(InputProvider inputProvider)
         {
@@ -21,6 +30,7 @@ namespace GestureSign.Daemon.Input
             inputProvider.LowLevelMouseHook.MouseDown += LowLevelMouseHook_MouseDown;
             inputProvider.LowLevelMouseHook.MouseMove += LowLevelMouseHook_MouseMove;
             inputProvider.LowLevelMouseHook.MouseUp += LowLevelMouseHook_MouseUp;
+            inputProvider.LowLevelKeyboardHook.KeyIntercepted += LowLevelKeyboardHook_KeyIntercepted;
         }
 
         #region Custom Events
@@ -43,6 +53,7 @@ namespace GestureSign.Daemon.Input
             PointUp?.Invoke(this, args);
 
             SourceDevice = Devices.None;
+            IsKeyboardGesture = false;
         }
 
         public event EventHandler<InputPointsEventArgs> PointMove;
@@ -56,6 +67,44 @@ namespace GestureSign.Daemon.Input
         #endregion
 
         #region Private Methods
+
+        private void LowLevelKeyboardHook_KeyIntercepted(int msg, int vkCode, int scanCode, int flags, int time, IntPtr dwExtraInfo, ref bool handled)
+        {
+            if ((Keys)vkCode != DrawingKeyboardKey) return;
+
+            if (msg == WmKeyDown || msg == WmSysKeyDown)
+            {
+                if (!_keyboardDrawing)
+                {
+                    if (SourceDevice != Devices.None) return;
+
+                    _keyboardDrawing = true;
+                    IsKeyboardGesture = true;
+                    var args = CreateMouseInputArgs();
+                    OnPointDown(args);
+                    handled = args.Handled;
+                }
+                else
+                {
+                    handled = true;
+                }
+            }
+            else if (msg == WmKeyUp || msg == WmSysKeyUp)
+            {
+                if (_keyboardDrawing)
+                {
+                    _keyboardDrawing = false;
+                    var args = CreateMouseInputArgs();
+                    OnPointUp(args);
+                    handled = args.Handled;
+                }
+            }
+        }
+
+        private static InputPointsEventArgs CreateMouseInputArgs()
+        {
+            return new InputPointsEventArgs(new List<InputPoint>(new[] { new InputPoint(1, Cursor.Position) }), Devices.Mouse);
+        }
 
         private void LowLevelMouseHook_MouseUp(LowLevelMouseMessage mouseMessage, ref bool handled)
         {
@@ -78,6 +127,7 @@ namespace GestureSign.Daemon.Input
         {
             if ((MouseActions)mouseMessage.Button == AppConfig.DrawingButton && _pressedMouseButton.Count == 0)
             {
+                IsKeyboardGesture = false;
                 var args = new InputPointsEventArgs(new List<InputPoint>(new[] { new InputPoint(1, mouseMessage.Point) }), Devices.Mouse);
                 OnPointDown(args);
                 handled = args.Handled;

@@ -76,6 +76,8 @@ namespace GestureSign.Daemon.Input
 
         public Devices SourceDevice { get { return _pointEventTranslator.SourceDevice; } }
 
+        public bool IsKeyboardGesture { get { return _pointEventTranslator.IsKeyboardGesture; } }
+
         public LowLevelMouseHook MouseHook
         {
             get { return _inputProvider.LowLevelMouseHook; }
@@ -381,39 +383,47 @@ namespace GestureSign.Daemon.Input
             {
                 if (Mode != CaptureMode.UserDisabled)
                 {
-                    State = CaptureState.Disabled;
-
-                    var observeExceptionsTask = new Action<Task>(t =>
+                    if (IsKeyboardGesture)
                     {
                         State = CaptureState.Ready;
-                        Console.WriteLine($"{t.Exception.InnerException.GetType().Name}: {t.Exception.InnerException.Message}");
-                    });
-
-                    var clickAsync = Task.Factory.StartNew(delegate
+                        e.Handled = true;
+                    }
+                    else
                     {
-                        InputSimulator simulator = new InputSimulator();
-                        switch (AppConfig.DrawingButton)
+                        State = CaptureState.Disabled;
+
+                        var observeExceptionsTask = new Action<Task>(t =>
                         {
-                            case MouseActions.Left:
-                                simulator.Mouse.LeftButtonClick();
-                                break;
-                            case MouseActions.Middle:
-                                simulator.Mouse.MiddleButtonClick();
-                                break;
-                            case MouseActions.Right:
-                                simulator.Mouse.RightButtonClick();
-                                break;
-                            case MouseActions.XButton1:
-                                simulator.Mouse.XButtonClick(1);
-                                break;
-                            case MouseActions.XButton2:
-                                simulator.Mouse.XButtonClick(2);
-                                break;
-                        }
-                        State = CaptureState.Ready;
-                    }).ContinueWith(observeExceptionsTask, TaskContinuationOptions.OnlyOnFaulted);
+                            State = CaptureState.Ready;
+                            Console.WriteLine($"{t.Exception.InnerException.GetType().Name}: {t.Exception.InnerException.Message}");
+                        });
 
-                    e.Handled = true;
+                        var clickAsync = Task.Factory.StartNew(delegate
+                        {
+                            InputSimulator simulator = new InputSimulator();
+                            switch (AppConfig.DrawingButton)
+                            {
+                                case MouseActions.Left:
+                                    simulator.Mouse.LeftButtonClick();
+                                    break;
+                                case MouseActions.Middle:
+                                    simulator.Mouse.MiddleButtonClick();
+                                    break;
+                                case MouseActions.Right:
+                                    simulator.Mouse.RightButtonClick();
+                                    break;
+                                case MouseActions.XButton1:
+                                    simulator.Mouse.XButtonClick(1);
+                                    break;
+                                case MouseActions.XButton2:
+                                    simulator.Mouse.XButtonClick(2);
+                                    break;
+                            }
+                            State = CaptureState.Ready;
+                        }).ContinueWith(observeExceptionsTask, TaskContinuationOptions.OnlyOnFaulted);
+
+                        e.Handled = true;
+                    }
                 }
                 else
                 {
@@ -473,6 +483,12 @@ namespace GestureSign.Daemon.Input
                     }
                     else if (SourceDevice == Devices.Mouse)
                     {
+                        if (IsKeyboardGesture)
+                        {
+                            State = CaptureState.Ready;
+                            return;
+                        }
+
                         InputSimulator simulator = new InputSimulator();
                         switch (AppConfig.DrawingButton)
                         {
